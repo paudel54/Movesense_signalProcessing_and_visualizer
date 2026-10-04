@@ -1,5 +1,4 @@
 """Data loading and signal helpers for Movesense ECG exports."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,7 +7,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
+#Dataclass writes init automatically for us. 
+#@property makes method to behave like read-only attribute. 
 @dataclass
 class EcgData:
     path: Path
@@ -18,28 +18,33 @@ class EcgData:
 
     @property
     def sample_count(self) -> int:
+        """Number of ECG samples loaded from the CSV."""
         return int(self.time_s.size)
 
     @property
     def duration_s(self) -> float:
+        """Recording duration in seconds, based on first and last timestamps."""
         if self.sample_count == 0:
             return 0.0
         return float(self.time_s[-1] - self.time_s[0])
 
     @property
     def start_s(self) -> float:
+        """First elapsed-time value in seconds."""
         if self.sample_count == 0:
             return 0.0
         return float(self.time_s[0])
 
     @property
     def end_s(self) -> float:
+        """Last elapsed-time value in seconds."""
         if self.sample_count == 0:
             return 0.0
         return float(self.time_s[-1])
 
     @property
     def sample_rate_hz(self) -> float:
+        """Estimated sampling rate in Hz from the median timestamp spacing."""
         if self.sample_count < 2:
             return 0.0
         spacing = np.median(np.diff(self.time_s[: min(self.sample_count, 10000)]))
@@ -70,7 +75,7 @@ def read_movesense_csv(path: Path) -> EcgData:
         raise ValueError("CSV contains no ECG samples.")
     return EcgData(path=path, metadata=metadata, time_s=time_s, ecg_mv=ecg_mv)
 
-
+#Stores the metadata information as key value pair.
 def read_metadata(path: Path) -> dict[str, str]:
     metadata: dict[str, str] = {}
     with path.open("r", encoding="utf-8-sig", errors="replace") as handle:
@@ -85,7 +90,7 @@ def read_metadata(path: Path) -> dict[str, str]:
             metadata[key.lower()] = value.strip()
     return metadata
 
-
+#Downsampling for faster visualization in UI interface keeping or making sure R peaks is conserved.
 def downsample_envelope(
     x: np.ndarray,
     y: np.ndarray,
@@ -120,7 +125,7 @@ def downsample_envelope(
         y_out = np.concatenate([y_out, y[trim:]])
     return x_out, y_out
 
-
+#Chooses the vertical Y-axis range for ECG plot. 
 def robust_y_limits(values: np.ndarray) -> tuple[float, float]:
     if values.size == 0:
         return -1.0, 1.0
