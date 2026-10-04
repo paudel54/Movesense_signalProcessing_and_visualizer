@@ -12,7 +12,7 @@ import numpy as np
 from app_style import APP_STYLESHEET
 from ecg_preprocessing import PreprocessingResult, PreprocessingSettings, apply_preprocessing
 from movesense_data import EcgData, downsample_envelope, read_movesense_csv, robust_y_limits
-from plot_helpers import TimeAxisItem, configure_pyqtgraph, format_seconds
+from plot_helpers import TimeAxisItem, configure_pyqtgraph, format_duration, format_seconds
 
 try:
     from PyQt6 import QtCore, QtGui, QtWidgets
@@ -31,7 +31,7 @@ except ImportError as exc:  # pragma: no cover - shown only when dependency is a
     ) from exc
 
 
-DEFAULT_CSV = "MovesenseECG-2026-09-15T19_20_59.226951Z.csv"
+DEFAULT_CSV = "MC007.csv"
 MAX_DETAIL_POINTS = 24000
 MAX_OVERVIEW_POINTS = 10000
 DEFAULT_WINDOW_SECONDS = 10.0
@@ -49,6 +49,7 @@ class EcgViewer(QtWidgets.QMainWindow):
         self.data: EcgData | None = None
         self.display_ecg: np.ndarray = np.array([])
         self.preprocessing_result: PreprocessingResult | None = None
+        self.session_title = "Session"
         self.visible_time: np.ndarray = np.array([])
         self.visible_ecg: np.ndarray = np.array([])
         self._updating_region = False
@@ -81,7 +82,14 @@ class EcgViewer(QtWidgets.QMainWindow):
         self.file_label.setTextInteractionFlags(QtCore.Qt.TextInteractionFlag.TextSelectableByMouse)
         header.addWidget(self.file_label, stretch=1)
 
-        self.open_button = QtWidgets.QPushButton("Open CSV")
+        header.addWidget(QtWidgets.QLabel("Plot title"))
+
+        self.session_title_edit = QtWidgets.QLineEdit("Session")
+        self.session_title_edit.setMinimumWidth(260)
+        self.session_title_edit.textChanged.connect(self.update_plot_title)
+        header.addWidget(self.session_title_edit)
+
+        self.open_button = QtWidgets.QPushButton("Load Data")
         self.open_button.clicked.connect(self.choose_file)
         header.addWidget(self.open_button)
 
@@ -179,6 +187,7 @@ class EcgViewer(QtWidgets.QMainWindow):
 
         self.detail_plot = pg.PlotWidget(axisItems={"bottom": TimeAxisItem(orientation="bottom")})
         self.detail_plot.setObjectName("DetailPlot")
+        self.detail_plot.setTitle(self.session_title)
         self.detail_plot.setLabel("left", "ECG (mV)")
         self.detail_plot.setLabel("bottom", "Elapsed time")
         self.detail_plot.getAxis("left").enableAutoSIPrefix(False)
@@ -240,6 +249,7 @@ class EcgViewer(QtWidgets.QMainWindow):
         self.plot_splitter.addWidget(self.detail_plot)
         self.plot_splitter.addWidget(self.overview_plot)
         self.plot_splitter.setSizes([680, 190])
+        self.update_plot_title()
 
         self.statusBar().showMessage("Ready")
 
@@ -275,17 +285,13 @@ class EcgViewer(QtWidgets.QMainWindow):
         self.high_cut_spin.setKeyboardTracking(False)
         self.high_cut_spin.valueChanged.connect(self.preprocessing_controls_changed)
 
-        self.filter_order_spin = QtWidgets.QSpinBox()
-        self.filter_order_spin.setRange(1, 10)
-        self.filter_order_spin.setValue(4)
-        self.filter_order_spin.valueChanged.connect(self.preprocessing_controls_changed)
-
         layout.addWidget(QtWidgets.QLabel("Low"), 0, 2)
         layout.addWidget(self.low_cut_spin, 0, 3)
         layout.addWidget(QtWidgets.QLabel("High"), 0, 4)
         layout.addWidget(self.high_cut_spin, 0, 5)
-        layout.addWidget(QtWidgets.QLabel("Order"), 0, 6)
-        layout.addWidget(self.filter_order_spin, 0, 7)
+        fixed_order = QtWidgets.QLabel("Order 4")
+        fixed_order.setObjectName("Subtle")
+        layout.addWidget(fixed_order, 0, 6)
 
         self.zcr_check = QtWidgets.QCheckBox("Zero crossing noise")
         self.zcr_check.stateChanged.connect(self.preprocessing_controls_changed)
@@ -294,7 +300,7 @@ class EcgViewer(QtWidgets.QMainWindow):
         self.zcr_cutoff_spin = QtWidgets.QDoubleSpinBox()
         self.zcr_cutoff_spin.setDecimals(2)
         self.zcr_cutoff_spin.setRange(0.01, 500.0)
-        self.zcr_cutoff_spin.setValue(30.0)
+        self.zcr_cutoff_spin.setValue(35.0)
         self.zcr_cutoff_spin.setSuffix(" /s")
         self.zcr_cutoff_spin.setKeyboardTracking(False)
         self.zcr_cutoff_spin.valueChanged.connect(self.preprocessing_controls_changed)
@@ -382,6 +388,13 @@ class EcgViewer(QtWidgets.QMainWindow):
     def _apply_style(self) -> None:
         self.setStyleSheet(APP_STYLESHEET)
 
+    def update_plot_title(self, title: str | None = None) -> None:
+        if title is None:
+            title = self.session_title_edit.text()
+        self.session_title = title.strip() or "Session"
+        if hasattr(self, "detail_plot"):
+            self.detail_plot.setTitle(self.session_title)
+
     def preprocessing_controls_changed(self) -> None:
         if self._updating_preprocessing_controls:
             return
@@ -433,7 +446,7 @@ class EcgViewer(QtWidgets.QMainWindow):
             apply_bandpass=bandpass_enabled,
             low_cut_hz=self.low_cut_spin.value(),
             high_cut_hz=self.high_cut_spin.value(),
-            filter_order=self.filter_order_spin.value(),
+            filter_order=4,
             apply_zcr=bandpass_enabled and self.zcr_check.isChecked(),
             zcr_cutoff_hz=self.zcr_cutoff_spin.value(),
             apply_motion=bandpass_enabled and self.motion_check.isChecked(),
@@ -497,8 +510,8 @@ class EcgViewer(QtWidgets.QMainWindow):
             total_sec = self.data.sample_count / self.data.sample_rate_hz if self.data else 0.0
             return (
                 "Preprocessing off. Raw ECG is displayed. "
-                f"Initial available signal: {total_sec:.2f} s. "
-                "Masked: 0.00 s. Usable: 100.00%."
+                f"Initial available signal: {format_duration(total_sec)}. "
+                "Masked: 0.00s. Usable: 100.00%."
             )
 
         parts = [
@@ -512,7 +525,7 @@ class EcgViewer(QtWidgets.QMainWindow):
         if settings.apply_zcr:
             flagged_windows = sum(1 for _, _, _, flagged in result.zcr_records if flagged)
             parts.append(
-                f"ZCR masked {zcr_sec:.2f} s across {flagged_windows} full 2 s windows "
+                f"ZCR masked {format_duration(zcr_sec)} across {flagged_windows} full 2 s windows "
                 f"(cutoff > {settings.zcr_cutoff_hz:.2f}/s)."
             )
             if result.trailing_zcr_samples:
@@ -520,7 +533,7 @@ class EcgViewer(QtWidgets.QMainWindow):
         if settings.apply_motion:
             flagged_windows = sum(1 for _, _, _, _, flagged in result.motion_records if flagged)
             parts.append(
-                f"Motion variance masked {motion_sec:.2f} s across {flagged_windows} sliding windows "
+                f"Motion variance masked {format_duration(motion_sec)} across {flagged_windows} sliding windows "
                 f"({settings.motion_window_sec:.2f} s window, {settings.motion_step_sec:.2f} s step, "
                 f"STD > {settings.motion_std_threshold_mv:.3f} mV or "
                 f"P99-P1 > {settings.motion_ptp_threshold_mv:.3f} mV)."
@@ -529,21 +542,21 @@ class EcgViewer(QtWidgets.QMainWindow):
                 parts.append(f"Motion trailing samples unassessed: {result.trailing_motion_samples}.")
         if settings.apply_rgap:
             parts.append(
-                f"R-gap masked {rgap_sec:.2f} s from {len(result.rgap_intervals)} gaps "
+                f"R-gap masked {format_duration(rgap_sec)} from {len(result.rgap_intervals)} gaps "
                 f"(peak threshold {settings.r_peak_height_scale:.2f} x {settings.max_r_peak_height:.3f} mV, "
                 f"gap > {settings.max_rr_sec:.2f} s)."
             )
             parts.append("Long gaps are suspected artifacts or missed beats, not proof of noisy signal.")
         if settings.apply_zcr or settings.apply_motion or settings.apply_rgap:
             parts.append(
-                f"Combined mask {combined_sec:.2f} s ({result.combined_percent():.2f}%), "
+                f"Combined mask {format_duration(combined_sec)} ({result.combined_percent():.2f}%), "
                 "with overlaps counted once."
             )
         total_sec = result.total_seconds(fs)
         usable_sec = result.usable_seconds(fs)
         parts.append(
-            f"Signal availability: total {total_sec:.2f} s, masked {combined_sec:.2f} s, "
-            f"usable {usable_sec:.2f} s ({result.usable_percent():.2f}%)."
+            f"Signal availability: total {format_duration(total_sec)}, masked {format_duration(combined_sec)}, "
+            f"usable {format_duration(usable_sec)} ({result.usable_percent():.2f}%)."
         )
         return " ".join(parts)
 
@@ -575,6 +588,7 @@ class EcgViewer(QtWidgets.QMainWindow):
         self.display_ecg = data.ecg_mv.astype(float, copy=True)
         self.preprocessing_result = None
         self.file_label.setText(str(data.path))
+        self.session_title_edit.setText(f"Session {data.path.stem}.")
         self.export_image_button.setEnabled(True)
         self._configure_filter_ranges()
 
@@ -761,12 +775,11 @@ class EcgViewer(QtWidgets.QMainWindow):
         if not self.data:
             return
         segment = self.visible_ecg
-        duration_min = self.data.duration_s / 60.0
         if segment.size:
             peak_to_peak = float(np.max(segment) - np.min(segment))
             text = (
                 f"Samples: {self.data.sample_count:,} | "
-                f"Duration: {duration_min:.2f} min | "
+                f"Duration: {format_duration(self.data.duration_s)} | "
                 f"Rate: {self.data.sample_rate_hz:.1f} Hz | "
                 f"Window: {start:.3f}-{end:.3f} s ({segment.size:,} samples) | "
                 f"Mean: {np.mean(segment):.4f} mV | "
@@ -788,8 +801,8 @@ class EcgViewer(QtWidgets.QMainWindow):
             masked_sec = self.preprocessing_result.masked_seconds(self.data.sample_rate_hz)[-1]
             usable_sec = self.preprocessing_result.usable_seconds(self.data.sample_rate_hz)
             text = (
-                f"{text}\nSignal availability: total {total_sec:.2f} s | "
-                f"masked {masked_sec:.2f} s | usable {usable_sec:.2f} s "
+                f"{text}\nSignal availability: total {format_duration(total_sec)} | "
+                f"masked {format_duration(masked_sec)} | usable {format_duration(usable_sec)} "
                 f"({self.preprocessing_result.usable_percent():.2f}%)"
             )
         self.stats_label.setText(text)
@@ -886,6 +899,8 @@ def main() -> int:
     app = QtWidgets.QApplication(sys.argv)
     viewer = EcgViewer(csv_path if csv_path.exists() else None)
     viewer.show()
+    if not csv_path.exists():
+        QtCore.QTimer.singleShot(0, viewer.choose_file)
     return app.exec()
 
 

@@ -58,6 +58,12 @@ QDoubleSpinBox {
     padding: 4px 6px;
     min-width: 100px;
 }
+QLineEdit {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 5px 7px;
+}
 QCheckBox {
     spacing: 6px;
 }

@@ -19,7 +19,7 @@ class PreprocessingSettings:
     filter_order: int = 4
     apply_zcr: bool = False
     zcr_window_sec: float = 2.0
-    zcr_cutoff_hz: float = 30.0
+    zcr_cutoff_hz: float = 35.0
     apply_motion: bool = False
     motion_window_sec: float = 2.0
     motion_step_sec: float = 0.5
@@ -202,7 +202,7 @@ def zero_crossing_mask(
     ecg_filtered: np.ndarray,
     fs: float,
     window_sec: float = 2.0,
-    cutoff_hz: float = 30.0,
+    cutoff_hz: float = 35.0,
 ) -> tuple[np.ndarray, list[tuple[int, int, float, bool]], int]:
     x = np.asarray(ecg_filtered, dtype=float)
     if fs <= 0:

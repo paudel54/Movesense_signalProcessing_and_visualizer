@@ -28,6 +28,7 @@ You can also pass a different CSV path:
 ```
 
 The app loads Movesense metadata, shows a full-recording overview, lets you inspect a selected time window, and can export the current view as an image.
+By default it looks for `MC007.csv` in this folder. If that file is not present, the app opens a load-data dialog.
 
 ## Interaction
 
@@ -38,9 +39,12 @@ The app loads Movesense metadata, shows a full-recording overview, lets you insp
 - Use Back, Forward, Reset, Fit Y, quick window buttons, or the Start and Window fields for precise navigation.
 - Toggle Crosshair to read the nearest sample time and ECG value under the mouse.
 - Use Export Image to save the current ECG detail plot and overview plot as a PNG or JPEG. The overview includes the selected region and center marker.
-- Use Preprocessing controls to apply a 5-40 Hz bandpass filter, optional zero-crossing masks, optional motion variance masks, and optional long R-gap masks. Masked display samples are flattened to `-1`.
+- Use Load Data to choose a CSV file from a dialog.
+- Edit the Plot title field to change the title shown above the ECG plot and exported image.
+- Use Preprocessing controls to apply a 5-40 Hz 4th-order bandpass filter, optional zero-crossing masks, optional motion variance masks, and optional long R-gap masks. Masked display samples are flattened to `-1`.
+- Zero-crossing noise uses a default cutoff of 35 crossings/second.
 - Motion variance uses an adjustable sliding window, defaulting to 2 seconds, with adjustable step, standard deviation threshold, and robust peak-to-peak threshold (`P99 - P1`).
-- Signal availability reports total signal, total masked signal, and usable percentage.
+- Signal availability reports total signal, total masked signal, and usable percentage using hour/minute/second formatting.
 
 ## Code layout
 

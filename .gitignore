@@ -4,7 +4,7 @@ __pycache__/
 
 # Real Movesense ECG recordings
 MovesenseECG*.csv
-
+MC007.csv
 # macOS files
 .DS_Store
 EOF

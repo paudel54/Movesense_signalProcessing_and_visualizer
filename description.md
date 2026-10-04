@@ -18,7 +18,10 @@ This project is a PyQt desktop ECG inspection tool for Movesense CSV exports. It
 ## Current Features
 
 - Load Movesense ECG CSV files with metadata header support.
+- Default input filename: `MC007.csv`.
+- Load Data opens a CSV chooser dialog; if `MC007.csv` is missing at startup, the dialog opens automatically.
 - Interactive ECG detail plot with pan, zoom, crosshair, quick window controls, and overview navigation.
+- Editable plot title, defaulting to `Session {filename}.` after loading data.
 - Export the current detail and overview plots as PNG or JPEG.
 - Display raw ECG by default.
 - Optional bandpass-filtered display waveform.
@@ -33,6 +36,7 @@ The raw ECG array is never modified. The preprocessing pipeline creates a separa
    - Default low cutoff: `5 Hz`.
    - Default high cutoff: `40 Hz`.
    - Default filter order: `4`.
+   - The filter order is fixed at 4 in code and is not exposed as a UI control.
    - Implementation: Butterworth bandpass designed with `scipy.signal.butter(..., output="sos")` and applied with zero-phase `scipy.signal.sosfiltfilt`.
    - No existing `apply_bandpass_filter` helper was found in this project when the feature was added.
 
@@ -42,7 +46,7 @@ The raw ECG array is never modified. The preprocessing pipeline creates a separa
    - Divides the filtered ECG into full `2 second` non-overlapping windows.
    - Computes zero crossings per second as `sign changes / (samples - 1) * sample_rate`.
    - Flags full windows where the rate is strictly greater than the user cutoff.
-   - Default cutoff: `30 crossings/second`.
+   - Default cutoff: `35 crossings/second`.
 
 3. Motion variance detection
    - Requires bandpass filtering to be enabled.
@@ -81,6 +85,7 @@ The preprocessing panel reports:
 - Initial available signal duration.
 - Total masked signal duration.
 - Usable signal duration and usable percentage.
+- Durations are shown with hour/minute/second formatting in the app.
 
 Samples flattened to `-1` by the combined mask are treated as not usable. Usable percentage is calculated as:
 
@@ -96,3 +101,8 @@ usable % = 100 * (total samples - combined masked samples) / total samples
 - Added preprocessing panel with bandpass filtering, zero-crossing artifact masking, and long R-peak gap masking.
 - Added motion variance masking with sliding-window standard deviation and robust peak-to-peak thresholds.
 - Added total available, total masked, usable duration, and usable percentage reporting.
+- Changed default input file to `MC007.csv`.
+- Added editable plot title field.
+- Removed the bandpass filter-order UI control; order remains fixed at 4.
+- Changed default zero-crossing cutoff to `35 crossings/second`.
+- Changed duration reporting to hour/minute/second formatting.
