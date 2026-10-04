@@ -10,9 +10,10 @@ from scipy.signal import butter, find_peaks, sosfiltfilt
 
 MASK_VALUE = -1.0
 
-
+#Frozen, makes the dataclass immutable after it is created. 
 @dataclass(frozen=True)
 class PreprocessingSettings:
+    """This stores the user controls: bandpass on/off, ZCR threshold, R-gap settings, motion thresholds."""
     apply_bandpass: bool = False
     low_cut_hz: float = 5.0
     high_cut_hz: float = 40.0
@@ -37,22 +38,32 @@ class PreprocessingSettings:
 
 
 @dataclass
+#Output container from ECG pre-processing
 class PreprocessingResult:
     display_ecg: np.ndarray
     filtered_ecg: np.ndarray | None = None
+    #zcr_mask = [False, False, True, True, False]
     zcr_mask: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
     motion_mask: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
     rgap_mask: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
     combined_mask: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
+
+    #zcr_records = [ (0, 400, 12.5, False), (400, 800, 38.2, True)]
     zcr_records: list[tuple[int, int, float, bool]] = field(default_factory=list)
     motion_records: list[tuple[int, int, float, float, bool]] = field(default_factory=list)
+
+    # Stores the index or r-peaks suchas: 
+    # r_peaks = np.array([150, 355, 560, 765])
     r_peaks: np.ndarray = field(default_factory=lambda: np.array([], dtype=int))
+    #maskes the start and end of sample index for rgap
     rgap_intervals: list[tuple[int, int]] = field(default_factory=list)
+
     trailing_zcr_samples: int = 0
     trailing_motion_samples: int = 0
     message: str = "Raw ECG"
 
     def masked_seconds(self, fs: float) -> tuple[float, float, float, float]:
+        """Return masked duration in seconds for ZCR, motion, R-gap, and combined masks."""
         if fs <= 0:
             return 0.0, 0.0, 0.0, 0.0
         zcr_sec = float(np.count_nonzero(self.zcr_mask) / fs)
@@ -62,28 +73,33 @@ class PreprocessingResult:
         return zcr_sec, motion_sec, rgap_sec, combined_sec
 
     def total_seconds(self, fs: float) -> float:
+        """Return the total recording duration represented by the mask array."""
         if fs <= 0 or self.combined_mask.size == 0:
             return 0.0
         return float(self.combined_mask.size / fs)
 
     def usable_seconds(self, fs: float) -> float:
+        """Return usable recording duration after removing combined masked samples."""
         if fs <= 0 or self.combined_mask.size == 0:
             return 0.0
         usable_samples = self.combined_mask.size - np.count_nonzero(self.combined_mask)
         return float(usable_samples / fs)
 
     def combined_percent(self) -> float:
+        """Return percentage of samples marked unusable by any detector."""
         if self.combined_mask.size == 0:
             return 0.0
         return float(100.0 * np.count_nonzero(self.combined_mask) / self.combined_mask.size)
 
     def usable_percent(self) -> float:
+        """Return percentage of samples still usable after masking."""
         return 100.0 - self.combined_percent()
 
 
 def apply_preprocessing(
     ecg_raw: np.ndarray,
     fs: float,
+    #settings would be the object of class pre-processing Settings
     settings: PreprocessingSettings,
 ) -> PreprocessingResult:
     raw = np.asarray(ecg_raw, dtype=float)
@@ -109,6 +125,8 @@ def apply_preprocessing(
     zcr_mask = empty_mask.copy()
     zcr_records: list[tuple[int, int, float, bool]] = []
     trailing_zcr_samples = 0
+
+    #Executes zero corssing checks and returns flagged areas, start and end index and zero crossing rate when it's triggred.
     if settings.apply_zcr:
         zcr_mask, zcr_records, trailing_zcr_samples = zero_crossing_mask(
             filtered,
@@ -208,6 +226,7 @@ def zero_crossing_mask(
     if fs <= 0:
         raise ValueError("Sampling frequency must be positive.")
 
+    #Default placeholder to mark the samples [by 400 samples each to track windows]
     mask = np.zeros(len(x), dtype=bool)
     win = int(round(window_sec * fs))
     if win < 2:
@@ -246,10 +265,12 @@ def long_rpeak_gap_mask(
     peaks, _ = find_peaks(
         x,
         height=height_scale * max_peak_height,
+        #requires distance in sample
         distance=max(1, int(round(min_rr_sec * fs))),
     )
 
     mask = np.zeros(len(x), dtype=bool)
+    #Intervals record the index for start and end index for falggin log gap. 
     intervals: list[tuple[int, int]] = []
     protect = int(round(protect_sec * fs))
 
